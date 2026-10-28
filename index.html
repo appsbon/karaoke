@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Karaoke MIDI Player</title>
+
+    <script src="./settings.js"></script>
+    <script src="./songlist.js"></script>
+
+    <style>
+        :root {
+            --karaoke-background: #101CEF;
+            --active-color: #00FF00;
+            --upcoming-color: #FFFFFF;
+            --lyric-font-family: Arial, sans-serif;
+            --lyric-font-size: 88px;
+            --lyric-side-margin: 10.42%;
+            --first-line-top: 37.04%;
+            --second-line-top: 64.81%;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #10121A;
+            color: #F2F4FF;
+            font-family: Arial, sans-serif;
+        }
+
+        .app {
+            width: min(1500px, 100%);
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            margin: 0 0 20px;
+            color: #AEB5CD;
+            line-height: 1.5;
+        }
+
+        .panel {
+            padding: 18px;
+            margin-bottom: 18px;
+            background: #1B1E2A;
+            border: 1px solid #33384B;
+            border-radius: 12px;
+        }
+
+        button,
+        select {
+            padding: 10px 14px;
+            border: 1px solid #48516C;
+            border-radius: 8px;
+            background: #30364A;
+            color: #FFFFFF;
+            font-size: 14px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) {
+            background: #414A64;
+        }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .primary-button {
+            background: #424CFF;
+            border-color: #626CFF;
+            font-weight: bold;
+        }
+
+        .primary-button:hover:not(:disabled) {
+            background: #5962FF;
+        }
+
+        .top-controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        #status {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #DCE2FF;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
+        #status.error {
+            color: #FF9E9E;
+        }
+
+        #status.success {
+            color: #8DFFAF;
+        }
+
+        #retryButton[hidden] {
+            display: none;
+        }
+
+        .help-text {
+            margin: 12px 0 0;
+            color: #AEB5CD;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* Karaoke screen */
+
+        .karaoke-stage {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            margin-bottom: 18px;
+            border: 1px solid #4656FF;
+            border-radius: 10px;
+            background: var(--karaoke-background);
+        }
+
+        .lyric-line {
+            position: absolute;
+            left: var(--lyric-side-margin);
+            right: var(--lyric-side-margin);
+            transform: translateY(-50%);
+            min-height: 1.2em;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-family: var(--lyric-font-family);
+            font-size: clamp(20px, 4.5vw, var(--lyric-font-size));
+            font-weight: 700;
+            line-height: 1.2;
+            text-shadow: 2px 3px 2px rgba(0, 0, 0, 0.32);
+        }
+
+        #lyrics1 {
+            top: var(--first-line-top);
+        }
+
+        #lyrics2 {
+            top: var(--second-line-top);
+        }
+
+        .lyric-upcoming {
+            color: var(--upcoming-color);
+        }
+
+        .lyric-past,
+        .lyric-current {
+            color: var(--active-color);
+        }
+
+        .lyric-current {
+            text-shadow:
+                0 0 5px rgba(0, 255, 0, 0.4),
+                2px 3px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .lyric-hint {
+            position: absolute;
+            top: 50%;
+            left: 8%;
+            right: 8%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.8);
+            text-align: center;
+            font-size: clamp(14px, 2vw, 24px);
+            line-height: 1.5;
+        }
+
+        .track-title {
+            font-size: 19px;
+            font-weight: bold;
+            overflow-wrap: anywhere;
+        }
+
+        .track-artist {
+            margin-top: 4px;
+            color: #AEB5CD;
+            overflow-wrap: anywhere;
+        }
+
+        .transport {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .transport button {
+            min-width: 82px;
+        }
+
+        .progress-row {
+            display: grid;
+            grid-template-columns: 56px minmax(0, 1fr) 56px;
+            align-items: center;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .time {
+            color: #C7CDE0;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #737CFF;
+            cursor: pointer;
+        }
+
+        .options-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .options-row label {
+            color: #C7CDE0;
+            font-size: 14px;
+        }
+
+        .playlist-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .playlist-heading h2 {
+            margin: 0;
+            font-size: 19px;
+        }
+
+        #playlist {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .playlist-item button {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            text-align: left;
+        }
+
+        .playlist-item button.selected {
+            background: #333C71;
+            border-color: #737CFF;
+        }
+
+        .song-number {
+            flex: 0 0 30px;
+            width: 30px;
+            color: #AEB5CD;
+            text-align: center;
+        }
+
+        .song-information {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .song-name {
+            font-weight: bold;
+            overflow-wrap: anywhere;
+        }
+
+        .song-artist {
+            color: #B8C0D9;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .playlist-empty {
+            padding: 12px;
+            background: #242838;
+            color: #B7BFD8;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 10px;
+            }
+
+            .panel {
+                padding: 13px;
+            }
+
+            .transport button {
+                flex: 1;
+            }
+
+            .karaoke-stage {
+                border-radius: 6px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="app">
+
+    <h1>Karaoke MIDI Player</h1>
+
+    <p class="subtitle">
+        Your online karaoke library, loaded automatically.
+    </p>
+
+    <section class="panel">
+        <div class="top-controls">
+            <span id="initializingText">Initializing player...</span>
+
+            <button
+                id="retryButton"
+                class="primary-button"
+                hidden
+                type="button"
+            >
+                Retry Initialization
+            </button>
+        </div>
+
+        <div id="status" role="status" aria-live="polite">
+            Loading player settings...
+        </div>
+
+        <p class="help-text">
+            The SoundFont and songs are loaded from their configured URLs.
+            No manual MIDI/KAR file selection is needed.
+        </p>
+    </section>
+
+    <section class="karaoke-stage" aria-label="Karaoke lyrics">
+        <div id="lyrics1" class="lyric-line"></div>
+        <div id="lyrics2" class="lyric-line"></div>
+
+        <div id="lyricHint" class="lyric-hint">
+            Loading karaoke player...
+        </div>
+    </section>
+
+    <section class="panel">
+        <div id="currentTitle" class="track-title">
+            No song selected
+        </div>
+
+        <div id="currentArtist" class="track-artist">
+            Your song list will appear below.
+        </div>
+
+        <div class="transport">
+            <button id="previousButton" disabled>Previous</button>
+            <button id="playButton" class="primary-button" disabled>
+                Play
+            </button>
+            <button id="stopButton" disabled>Stop</button>
+            <button id="nextButton" disabled>Next</button>
+        </div>
+
+        <div class="progress-row">
+            <span id="currentTime" class="time">0:00</span>
+
+            <input
+                id="progress"
+                type="range"
+                min="0"
+                max="1000"
+                step="1"
+                value="0"
+                aria-label="Song position"
+            >
+
+            <span id="duration" class="time">0:00</span>
+        </div>
+
+        <div class="options-row">
+            <label for="speedSelect">Playback speed:</label>
+
+            <select id="speedSelect">
+                <option value="0.75">0.75×</option>
+                <option value="0.90">0.90×</option>
+                <option value="1" selected>1.00×</option>
+                <option value="1.10">1.10×</option>
+                <option value="1.25">1.25×</option>
+            </select>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="playlist-heading">
+            <h2>Song List</h2>
+            <span id="songCount" class="time">0 songs</span>
+        </div>
+
+        <ol id="playlist"></ol>
+    </section>
+
+</div>
+
+<script type="module">
+    const DEFAULT_SETTINGS = {
+        soundFontUrl: "./FluidR3_GM.sf2",
+
+        libraryUrl:
+            "https://cdn.jsdelivr.net/npm/spessasynth_lib@4.4.0/+esm",
+
+        workletUrl:
+            "https://cdn.jsdelivr.net/npm/spessasynth_lib@4.4.0/dist/spessasynth_processor.min.js",
+
+        introPreviewSeconds: 2.5,
+        nextLyricPreviewSeconds: 2.5,
+        interludeGapSeconds: 4.0,
+        maxAfterLastSyllableSeconds: 2.5,
+
+        backgroundColor: "#101CEF",
+        fontFamily: "Arial",
+        fontSize: 88,
+        leftRightMargin: 200,
+        rowPositions: [400, 700],
+        activeColor: "#00FF00",
+        upcomingColor: "#FFFFFF"
+    };
+
+    const settings = {
+        ...DEFAULT_SETTINGS,
+        ...(window.KARAOKE_SETTINGS || {})
+    };
+
+    const songs = Array.isArray(window.KARAOKE_SONGS)
+        ? window.KARAOKE_SONGS.map((song, index) => ({
+            ...song,
+            id: song.id ?? index + 1,
+            title: song.title || `Song ${index + 1}`,
+            artist: song.artist || "Unknown Artist",
+            url: song.url || ""
+        }))
+        : [];
+
+    let audioContext = null;
+    let synthesizer = null;
+    let sequencer = null;
+
+    let playerInitialized = false;
+    let initializationPromise = null;
+    let currentSongLoaded = false;
+    let isLoadingSong = false;
+    let selectedSongIndex = songs.length ? 0 : -1;
+
+    let currentLyrics = [];
+    let lyricParserWarning = "";
+    let lastLyricDisplayKey = "";
+    let updateTimer = null;
+
+    const $ = id => document.getElementById(id);
+
+    const initializeButton = $("retryButton");
+    const initializingText = $("initializingText");
+    const statusElement = $("status");
+
+    const currentTitle = $("currentTitle");
+    const currentArtist = $("currentArtist");
+
+    const lyrics1 = $("lyrics1");
+    const lyrics2 = $("lyrics2");
+    const lyricHint = $("lyricHint");
+
+    const previousButton = $("previousButton");
+    const playButton = $("playButton");
+    const stopButton = $("stopButton");
+    const nextButton = $("nextButton");
+
+    const progress = $("progress");
+    const currentTimeElement = $("currentTime");
+    const durationElement = $("duration");
+    const speedSelect = $("speedSelect");
+
+    const playlistElement = $("playlist");
+    const songCountElement = $("songCount");
+
+    document.documentElement.style.setProperty(
+        "--karaoke-background",
+        settings.backgroundColor
+    );
+
+    document.documentElement.style.setProperty(
+        "--active-color",
+        settings.activeColor
+    );
+
+    document.documentElement.style.setProperty(
+        "--upcoming-color",
+        settings.upcomingColor
+    );
+
+    document.documentElement.style.setProperty(
+        "--lyric-font-family",
+        settings.fontFamily
+    );
+
+    document.documentElement.style.setProperty(
+        "--lyric-font-size",
+        `${Number(settings.fontSize) || 88}px`
+    );
+
+    document.documentElement.style.setProperty(
+        "--lyric-side-margin",
+        `${Math.max(2, Math.min(
+            25,
+            (Number(settings.leftRightMargin) || 200) / 1920 * 100
+        ))}%`
+    );
+
+    document.documentElement.style.setProperty(
+        "--first-line-top",
+        `${(Number(settings.rowPositions?.[0]) || 400) / 1080 * 100}%`
+    );
+
+    document.documentElement.style.setProperty(
+        "--second-line-top",
+        `${(Number(settings.rowPositions?.[1]) || 700) / 1080 * 100}%`
+    );
+
+    function setStatus(message, type = "") {
+        statusElement.textContent = message;
+        statusElement.className = type;
+    }
+
+    function formatTime(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) {
+            seconds = 0;
+        }
+
+        const total = Math.floor(seconds);
+        const minutes = Math.floor(total / 60);
+        const remainder = total % 60;
+
+        return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    }
+
+    function getSongTitle(song) {
+        return song.title || song.fileName || "Untitled Song";
+    }
+
+    function getSongArtist(song) {
+        return song.artist || "Unknown Artist";
+    }
+
+    function resolveUrl(path) {
+        return new URL(path, document.baseURI).href;
+    }
+
+    /*
+       Include the exact URL in any network error so a missing file,
+       invalid path, or CORS problem is easier to identify.
+    */
+    async function fetchArrayBuffer(url, description) {
+        let response;
+
+        try {
+            response = await fetch(url);
+        } catch (error) {
+            let guidance =
+                "Check that this URL is public and reachable.";
+
+            if (location.protocol === "file:") {
+                guidance =
+                    "You opened index.html as a local file. Start a web server and open the page through http://localhost instead.";
+            } else {
+                guidance +=
+                    " If this file is on a different domain, configure that file host's CORS policy to allow this website.";
+            }
+
+            throw new Error(
+                `${description} request failed.\n` +
+                `URL: ${url}\n` +
+                `${guidance}\n` +
+                `Browser error: ${error?.message || String(error)}`
+            );
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                `${description} returned HTTP ${response.status}.\n` +
+                `URL: ${url}\n` +
+                `Check the filename, directory, and public access settings.`
+            );
+        }
+
+        return await response.arrayBuffer();
+    }
+
+    function renderPlaylist() {
+        playlistElement.replaceChildren();
+
+        songCountElement.textContent =
+            `${songs.length} song${songs.length === 1 ? "" : "s"}`;
+
+        if (songs.length === 0) {
+            const emptyItem = document.createElement("li");
+
+            emptyItem.className = "playlist-empty";
+            emptyItem.textContent =
+                "No songs found. Add song entries to songlist.js.";
+
+            playlistElement.appendChild(emptyItem);
+        } else {
+            songs.forEach((song, index) => {
+                const item = document.createElement("li");
+                item.className = "playlist-item";
+
+                const button = document.createElement("button");
+                button.type = "button";
+
+                if (index === selectedSongIndex) {
+                    button.classList.add("selected");
+                }
+
+                const number = document.createElement("span");
+                number.className = "song-number";
+                number.textContent = String(index + 1);
+
+                const information = document.createElement("span");
+                information.className = "song-information";
+
+                const title = document.createElement("span");
+                title.className = "song-name";
+                title.textContent = getSongTitle(song);
+
+                const artist = document.createElement("span");
+                artist.className = "song-artist";
+                artist.textContent = getSongArtist(song);
+
+                information.append(title, artist);
+                button.append(number, information);
+
+                button.addEventListener("click", () => {
+                    void playSong(index);
+                });
+
+                item.appendChild(button);
+                playlistElement.appendChild(item);
+            });
+        }
+
+        updateControls();
+    }
+
+    function updateControls() {
+        const hasSelection =
+            selectedSongIndex >= 0 &&
+            selectedSongIndex < songs.length;
+
+        playButton.disabled =
+            !playerInitialized || !hasSelection || isLoadingSong;
+
+        stopButton.disabled =
+            !playerInitialized || !currentSongLoaded || isLoadingSong;
+
+        previousButton.disabled =
+            !playerInitialized || songs.length < 2 || isLoadingSong;
+
+        nextButton.disabled =
+            !playerInitialized || songs.length < 2 || isLoadingSong;
+
+        if (!sequencer || !currentSongLoaded) {
+            playButton.textContent = "Play";
+            return;
+        }
+
+        playButton.textContent =
+            sequencer.paused
+                ? (sequencer.isFinished ? "Replay" : "Play")
+                : "Pause";
+    }
+
+    /*
+       Automatically initialize when the page opens.
+       Clicking Retry is only necessary if loading fails.
+    */
+    async function initializePlayer() {
+        if (playerInitialized) {
+            return;
+        }
+
+        if (initializationPromise) {
+            return initializationPromise;
+        }
+
+        initializeButton.hidden = true;
+        initializingText.textContent = "Initializing player...";
+        setStatus("Loading the SoundFont and MIDI synthesizer...");
+
+        initializationPromise = (async () => {
+            try {
+                const soundfontUrl = resolveUrl(settings.soundFontUrl);
+
+                setStatus(`Loading SoundFont:\n${soundfontUrl}`);
+
+                const soundfontBuffer = await fetchArrayBuffer(
+                    soundfontUrl,
+                    "SoundFont"
+                );
+
+                setStatus("Loading the MIDI synthesizer library...");
+
+                const {
+                    WorkletSynthesizer,
+                    Sequencer
+                } = await import(settings.libraryUrl);
+
+                audioContext = new AudioContext({
+                    sampleRate: 44100
+                });
+
+                const workletUrl = resolveUrl(settings.workletUrl);
+
+                await audioContext.audioWorklet.addModule(workletUrl);
+
+                synthesizer = new WorkletSynthesizer(audioContext);
+
+                synthesizer.connect(audioContext.destination);
+
+                setStatus("Preparing the synthesizer...");
+
+                await synthesizer.soundBankManager.addSoundBank(
+                    soundfontBuffer,
+                    "main"
+                );
+
+                await synthesizer.isReady;
+
+                sequencer = new Sequencer(synthesizer);
+
+                sequencer.loopCount = 0;
+
+                /*
+                   Do not skip the start of the MIDI file; this keeps
+                   lyric timestamps aligned with the beginning of the song.
+                */
+                sequencer.skipToFirstNoteOn = false;
+
+                playerInitialized = true;
+
+                initializingText.textContent = "Player ready";
+                initializeButton.hidden = true;
+
+                if (selectedSongIndex >= 0) {
+                    const firstSong = songs[selectedSongIndex];
+
+                    currentTitle.textContent = getSongTitle(firstSong);
+                    currentArtist.textContent = getSongArtist(firstSong);
+                }
+
+                setStatus(
+                    songs.length
+                        ? `Player ready. ${songs.length} song(s) found in songlist.js. Select a song to play.`
+                        : "Player ready, but songlist.js contains no songs.",
+                    "success"
+                );
+
+                if (updateTimer !== null) {
+                    clearInterval(updateTimer);
+                }
+
+                updateTimer = window.setInterval(
+                    updatePlayerDisplay,
+                    100
+                );
+
+                renderPlaylist();
+            } catch (error) {
+                console.error(error);
+
+                initializingText.textContent = "Initialization failed";
+                initializeButton.hidden = false;
+
+                setStatus(
+                    error?.message || String(error),
+                    "error"
+                );
+            } finally {
+                initializationPromise = null;
+            }
+        })();
+
+        return initializationPromise;
+    }
+
+    /*
+       Read MIDI lyric meta-events and tempo changes.
+    */
+    function parseMidiLyrics(arrayBuffer) {
+        const bytes = new Uint8Array(arrayBuffer);
+        const view = new DataView(arrayBuffer);
+
+        function readAscii(offset, count) {
+            return String.fromCharCode(
+                ...bytes.slice(offset, offset + count)
+            );
+        }
+
+        if (bytes.length < 14 || readAscii(0, 4) !== "MThd") {
+            throw new Error("Invalid MIDI header.");
+        }
+
+        const headerLength = view.getUint32(4, false);
+        const trackCount = view.getUint16(10, false);
+        const division = view.getUint16(12, false);
+
+        if (division === 0 || (division & 0x8000) !== 0) {
+            throw new Error("Unsupported MIDI timing format.");
+        }
+
+        const ticksPerQuarter = division;
+        let cursor = 8 + headerLength;
+
+        const tempoEvents = [{
+            tick: 0,
+            microsecondsPerQuarter: 500000
+        }];
+
+        const lyricEvents = [];
+
+        function readVariableLength(state, end) {
+            let value = 0;
+            let count = 0;
+
+            while (state.i < end && count < 4) {
+                const byte = bytes[state.i++];
+
+                value = (value << 7) | (byte & 0x7F);
+                count++;
+
+                if ((byte & 0x80) === 0) {
+                    break;
+                }
+            }
+
+            return value;
+        }
+
+        for (let trackNumber = 0; trackNumber < trackCount; trackNumber++) {
+            if (cursor + 8 > bytes.length) {
+                break;
+            }
+
+            const chunkName = readAscii(cursor, 4);
+            const chunkLength = view.getUint32(cursor + 4, false);
+
+            const trackStart = cursor + 8;
+            const trackEnd = Math.min(
+                trackStart + chunkLength,
+                bytes.length
+            );
+
+            cursor = trackStart + chunkLength;
+
+            if (chunkName !== "MTrk") {
+                continue;
+            }
+
+            const state = { i: trackStart };
+
+            let absoluteTick = 0;
+            let runningStatus = null;
+            let eventOrder = 0;
+
+            while (state.i < trackEnd) {
+                absoluteTick += readVariableLength(state, trackEnd);
+
+                if (state.i >= trackEnd) {
+                    break;
+                }
+
+                const firstByte = bytes[state.i];
+
+                let status;
+                let firstDataByte = null;
+
+                if (firstByte < 0x80) {
+                    if (runningStatus === null) {
+                        state.i++;
+                        continue;
+                    }
+
+                    status = runningStatus;
+                    firstDataByte = firstByte;
+                    state.i++;
+                } else {
+                    status = firstByte;
+                    state.i++;
+                }
+
+                if (status === 0xFF) {
+                    if (state.i >= trackEnd) {
+                        break;
+                    }
+
+                    const metaType = bytes[state.i++];
+                    const length = readVariableLength(state, trackEnd);
+
+                    const availableLength = Math.max(
+                        0,
+                        Math.min(length, trackEnd - state.i)
+                    );
+
+                    const data = bytes.slice(
+                        state.i,
+                        state.i + availableLength
+                    );
+
+                    state.i += availableLength;
+                    runningStatus = null;
+
+                    if (metaType === 0x51 && data.length >= 3) {
+                        const tempo =
+                            (data[0] << 16) |
+                            (data[1] << 8) |
+                            data[2];
+
+                        if (tempo > 0) {
+                            tempoEvents.push({
+                                tick: absoluteTick,
+                                microsecondsPerQuarter: tempo
+                            });
+                        }
+                    }
+
+                    if (metaType === 0x05 || metaType === 0x01) {
+                        lyricEvents.push({
+                            tick: absoluteTick,
+                            trackNumber,
+                            eventOrder: eventOrder++,
+                            metaType,
+                            bytes: data
+                        });
+                    }
+
+                    continue;
+                }
+
+                if (status === 0xF0 || status === 0xF7) {
+                    const length = readVariableLength(state, trackEnd);
+
+                    state.i = Math.min(
+                        state.i + length,
+                        trackEnd
+                    );
+
+                    runningStatus = null;
+                    continue;
+                }
+
+                if (status >= 0xF0) {
+                    runningStatus = null;
+
+                    let count = 0;
+
+                    if (status === 0xF1 || status === 0xF3) {
+                        count = 1;
+                    } else if (status === 0xF2) {
+                        count = 2;
+                    }
+
+                    state.i = Math.min(
+                        state.i + count,
+                        trackEnd
+                    );
+
+                    continue;
+                }
+
+                runningStatus = status;
+
+                const command = status & 0xF0;
+
+                const dataByteCount =
+                    command === 0xC0 || command === 0xD0 ? 1 : 2;
+
+                if (firstDataByte === null) {
+                    if (state.i >= trackEnd) {
+                        break;
+                    }
+
+                    firstDataByte = bytes[state.i++];
+                }
+
+                if (dataByteCount === 2) {
+                    if (state.i >= trackEnd) {
+                        break;
+                    }
+
+                    state.i++;
+                }
+            }
+        }
+
+        const dedicatedLyrics = lyricEvents.filter(
+            event => event.metaType === 0x05
+        );
+
+        const events = (
+            dedicatedLyrics.length
+                ? dedicatedLyrics
+                : lyricEvents.filter(event => event.metaType === 0x01)
+        ).sort((a, b) =>
+            a.tick - b.tick ||
+            a.trackNumber - b.trackNumber ||
+            a.eventOrder - b.eventOrder
+        );
+
+        tempoEvents.sort((a, b) => a.tick - b.tick);
+
+        function ticksToSeconds(targetTick) {
+            let seconds = 0;
+            let previousTick = 0;
+            let tempo = 500000;
+
+            for (const event of tempoEvents) {
+                if (event.tick > targetTick) {
+                    break;
+                }
+
+                if (event.tick >= previousTick) {
+                    seconds +=
+                        ((event.tick - previousTick) * tempo) /
+                        (ticksPerQuarter * 1000000);
+
+                    previousTick = event.tick;
+                }
+
+                tempo = event.microsecondsPerQuarter;
+            }
+
+            seconds +=
+                ((targetTick - previousTick) * tempo) /
+                (ticksPerQuarter * 1000000);
+
+            return seconds;
+        }
+
+        function decodeText(data) {
+            try {
+                return new TextDecoder("utf-8", {
+                    fatal: true
+                }).decode(data);
+            } catch {
+                return new TextDecoder("windows-1252").decode(data);
+            }
+        }
+
+        const tokens = [];
+        let lineNumber = 0;
+
+        for (const event of events) {
+            let text = decodeText(event.bytes)
+                .replace(/\uFEFF/g, "")
+                .replace(/\0/g, "")
+                .replace(/\r\n/g, " ")
+                .replace(/[\r\n]/g, " ");
+
+            if (!text.trim()) {
+                continue;
+            }
+
+            if (text.trim().startsWith("@")) {
+                continue;
+            }
+
+            if (text.startsWith("\\") || text.startsWith("/")) {
+                lineNumber++;
+                text = text.slice(1);
+            }
+
+            const trimmed = text.trimEnd();
+            const marker = trimmed.match(/[\\/]+$/);
+
+            let breakAfter = false;
+
+            if (marker) {
+                breakAfter = true;
+
+                text =
+                    trimmed.slice(0, -marker[0].length) +
+                    text.slice(trimmed.length);
+            }
+
+            if (text.trim()) {
+                tokens.push({
+                    index: tokens.length,
+                    tick: event.tick,
+                    time: ticksToSeconds(event.tick),
+                    text,
+                    line: lineNumber
+                });
+            }
+
+            if (breakAfter) {
+                lineNumber++;
+            }
+        }
+
+        /*
+           Simple fallback line wrapping for MIDI files without line markers.
+        */
+        const distinctLines = new Set(tokens.map(token => token.line));
+
+        if (tokens.length > 8 && distinctLines.size <= 1) {
+            let fallbackLine = 0;
+            let charactersInLine = 0;
+            let lineStartTime = tokens[0].time;
+            let previousText = "";
+
+            tokens.forEach((token, index) => {
+                const shouldBreak =
+                    index > 0 &&
+                    (
+                        charactersInLine >= 28 ||
+                        (
+                            token.time - lineStartTime >= 6.5 &&
+                            charactersInLine >= 12
+                        ) ||
+                        (
+                            /[,.!?;:]$/.test(previousText.trim()) &&
+                            charactersInLine >= 14
+                        )
+                    );
+
+                if (shouldBreak) {
+                    fallbackLine++;
+                    charactersInLine = 0;
+                    lineStartTime = token.time;
+                }
+
+                token.line = fallbackLine;
+                charactersInLine += token.text.trim().length;
+                previousText = token.text;
+            });
+        }
+
+        return tokens;
+    }
+
+    function getLyricDisplayState(time) {
+        if (!currentLyrics.length) {
+            return null;
+        }
+
+        let low = 0;
+        let high = currentLyrics.length;
+
+        while (low < high) {
+            const middle = Math.floor((low + high) / 2);
+
+            if (currentLyrics[middle].time <= time) {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+
+        const currentIndex = low - 1;
+
+        if (currentIndex < 0) {
+            const firstToken = currentLyrics[0];
+
+            if (
+                firstToken.time - time <=
+                Number(settings.introPreviewSeconds)
+            ) {
+                return {
+                    mode: "preview",
+                    line: firstToken.line,
+                    activeIndex: -1
+                };
+            }
+
+            return null;
+        }
+
+        const currentToken = currentLyrics[currentIndex];
+        const nextToken = currentLyrics[currentIndex + 1];
+
+        const elapsed = time - currentToken.time;
+
+        const gap = nextToken
+            ? nextToken.time - currentToken.time
+            : Infinity;
+
+        if (
+            gap > Number(settings.interludeGapSeconds) &&
+            elapsed > Number(settings.maxAfterLastSyllableSeconds)
+        ) {
+            if (
+                nextToken &&
+                nextToken.time >= time &&
+                nextToken.time - time <=
+                    Number(settings.nextLyricPreviewSeconds)
+            ) {
+                return {
+                    mode: "preview",
+                    line: nextToken.line,
+                    activeIndex: -1
+                };
+            }
+
+            return null;
+        }
+
+        return {
+            mode: "active",
+            line: currentToken.line,
+            activeIndex: currentIndex
+        };
+    }
+
+    function findNextLineNumber(lineNumber) {
+        for (const token of currentLyrics) {
+            if (token.line > lineNumber) {
+                return token.line;
+            }
+        }
+
+        return null;
+    }
+
+    function renderOneLine(container, lineNumber, activeIndex, previewMode) {
+        container.replaceChildren();
+
+        if (lineNumber === null || lineNumber === undefined) {
+            return;
+        }
+
+        const lineTokens = currentLyrics.filter(
+            token => token.line === lineNumber
+        );
+
+        for (const token of lineTokens) {
+            const span = document.createElement("span");
+            span.textContent = token.text;
+
+            if (previewMode) {
+                span.className = "lyric-upcoming";
+            } else if (token.index < activeIndex) {
+                span.className = "lyric-past";
+            } else if (token.index === activeIndex) {
+                span.className = "lyric-current";
+            } else {
+                span.className = "lyric-upcoming";
+            }
+
+            container.appendChild(span);
+        }
+    }
+
+    function renderLyrics(time) {
+        if (!currentLyrics.length) {
+            lyrics1.replaceChildren();
+            lyrics2.replaceChildren();
+
+            lyricHint.textContent = currentSongLoaded
+                ? (
+                    lyricParserWarning
+                        ? `Could not synchronize lyrics: ${lyricParserWarning}`
+                        : "No embedded karaoke lyrics were found in this MIDI file."
+                )
+                : "Select a song to begin";
+
+            lyricHint.style.display = "block";
+            lastLyricDisplayKey = "no-lyrics";
+            return;
+        }
+
+        const state = getLyricDisplayState(time);
+
+        if (!state) {
+            if (lastLyricDisplayKey !== "blank") {
+                lyrics1.replaceChildren();
+                lyrics2.replaceChildren();
+                lyricHint.style.display = "none";
+                lastLyricDisplayKey = "blank";
+            }
+
+            return;
+        }
+
+        const previewMode = state.mode === "preview";
+        const nextLine = findNextLineNumber(state.line);
+
+        const key = [
+            state.mode,
+            state.line,
+            state.activeIndex,
+            nextLine
+        ].join("|");
+
+        if (key === lastLyricDisplayKey) {
+            return;
+        }
+
+        renderOneLine(
+            lyrics1,
+            state.line,
+            state.activeIndex,
+            previewMode
+        );
+
+        renderOneLine(
+            lyrics2,
+            nextLine,
+            state.activeIndex,
+            previewMode
+        );
+
+        lyricHint.style.display = "none";
+        lastLyricDisplayKey = key;
+    }
+
+    /*
+       Load the song selected from songlist.js and start it.
+       The MIDI file is fetched by URL, not selected manually.
+    */
+    async function playSong(index) {
+        if (index < 0 || index >= songs.length) {
+            return;
+        }
+
+        if (!playerInitialized || !sequencer || !audioContext) {
+            setStatus("The player is still initializing. Please wait.");
+            return;
+        }
+
+        if (isLoadingSong) {
+            return;
+        }
+
+        selectedSongIndex = index;
+
+        renderPlaylist();
+
+        const song = songs[index];
+
+        isLoadingSong = true;
+        currentSongLoaded = false;
+
+        currentLyrics = [];
+        lyricParserWarning = "";
+        lastLyricDisplayKey = "";
+
+        currentTitle.textContent = getSongTitle(song);
+        currentArtist.textContent = getSongArtist(song);
+
+        renderLyrics(0);
+        updateControls();
+
+        try {
+            if (sequencer) {
+                sequencer.pause();
+            }
+
+            let midiBuffer;
+
+            if (song.buffer instanceof ArrayBuffer) {
+                midiBuffer = song.buffer.slice(0);
+            } else {
+                if (!song.url) {
+                    throw new Error(
+                        "This song has no URL in songlist.js."
+                    );
+                }
+
+                const songUrl = resolveUrl(song.url);
+
+                setStatus(
+                    `Loading song:\n${getSongTitle(song)}\n${songUrl}`
+                );
+
+                midiBuffer = await fetchArrayBuffer(
+                    songUrl,
+                    `Song "${getSongTitle(song)}"`
+                );
+
+                song.buffer = midiBuffer.slice(0);
+            }
+
+            try {
+                currentLyrics = parseMidiLyrics(midiBuffer.slice(0));
+
+                currentLyrics.forEach((token, index) => {
+                    token.index = index;
+                });
+            } catch (error) {
+                lyricParserWarning =
+                    error?.message || String(error);
+
+                currentLyrics = [];
+
+                console.warn("Lyric parser warning:", error);
+            }
+
+            /*
+               AudioContext.resume() is called after a user clicks a song.
+               This is compatible with browser autoplay restrictions.
+            */
+            await audioContext.resume();
+
+            sequencer.loadNewSongList([
+                {
+                    binary: midiBuffer.slice(0),
+                    fileName:
+                        song.fileName ||
+                        `${getSongArtist(song)} - ${getSongTitle(song)}`
+                }
+            ]);
+
+            sequencer.loopCount = 0;
+            sequencer.skipToFirstNoteOn = false;
+            sequencer.playbackRate =
+                Number(speedSelect.value) || 1;
+
+            sequencer.play();
+
+            currentSongLoaded = true;
+            lastLyricDisplayKey = "";
+
+            setStatus(
+                lyricParserWarning
+                    ? `Playing ${getSongTitle(song)}, but lyric synchronization could not be parsed.`
+                    : `Playing: ${getSongTitle(song)}`,
+                lyricParserWarning ? "" : "success"
+            );
+
+            renderLyrics(0);
+        } catch (error) {
+            console.error(error);
+
+            currentSongLoaded = false;
+
+            setStatus(
+                error?.message || String(error),
+                "error"
+            );
+        } finally {
+            isLoadingSong = false;
+            renderPlaylist();
+            updatePlayerDisplay();
+        }
+    }
+
+    function updatePlayerDisplay() {
+        if (!sequencer || !playerInitialized) {
+            updateControls();
+            return;
+        }
+
+        const currentTime = Number(sequencer.currentTime) || 0;
+        const duration = Number(sequencer.duration) || 0;
+
+        currentTimeElement.textContent = formatTime(currentTime);
+        durationElement.textContent = formatTime(duration);
+
+        if (document.activeElement !== progress) {
+            progress.value = duration > 0
+                ? String(Math.round(currentTime / duration * 1000))
+                : "0";
+        }
+
+        if (currentSongLoaded) {
+            renderLyrics(currentTime);
+        }
+
+        updateControls();
+    }
+
+    initializeButton.addEventListener("click", () => {
+        void initializePlayer();
+    });
+
+    playButton.addEventListener("click", async () => {
+        if (!playerInitialized || selectedSongIndex < 0) {
+            return;
+        }
+
+        if (!currentSongLoaded || sequencer.isFinished) {
+            await playSong(selectedSongIndex);
+            return;
+        }
+
+        if (sequencer.paused) {
+            await audioContext.resume();
+            sequencer.play();
+
+            setStatus(
+                `Playing: ${getSongTitle(songs[selectedSongIndex])}`,
+                "success"
+            );
+        } else {
+            sequencer.pause();
+
+            setStatus(
+                `Paused: ${getSongTitle(songs[selectedSongIndex])}`
+            );
+        }
+
+        updatePlayerDisplay();
+    });
+
+    stopButton.addEventListener("click", () => {
+        if (!sequencer || !currentSongLoaded) {
+            return;
+        }
+
+        sequencer.pause();
+        sequencer.currentTime = 0;
+
+        lastLyricDisplayKey = "";
+
+        setStatus("Playback stopped.");
+        updatePlayerDisplay();
+    });
+
+    previousButton.addEventListener("click", () => {
+        if (songs.length < 2) {
+            return;
+        }
+
+        const index =
+            (selectedSongIndex - 1 + songs.length) % songs.length;
+
+        void playSong(index);
+    });
+
+    nextButton.addEventListener("click", () => {
+        if (songs.length < 2) {
+            return;
+        }
+
+        const index = (selectedSongIndex + 1) % songs.length;
+
+        void playSong(index);
+    });
+
+    progress.addEventListener("input", () => {
+        if (!sequencer || !currentSongLoaded || sequencer.duration <= 0) {
+            return;
+        }
+
+        const previewTime =
+            Number(progress.value) / 1000 * sequencer.duration;
+
+        currentTimeElement.textContent = formatTime(previewTime);
+    });
+
+    progress.addEventListener("change", () => {
+        if (!sequencer || !currentSongLoaded || sequencer.duration <= 0) {
+            return;
+        }
+
+        sequencer.currentTime =
+            Number(progress.value) / 1000 * sequencer.duration;
+
+        lastLyricDisplayKey = "";
+
+        updatePlayerDisplay();
+    });
+
+    speedSelect.addEventListener("change", () => {
+        if (sequencer) {
+            sequencer.playbackRate =
+                Number(speedSelect.value) || 1;
+        }
+    });
+
+    document.addEventListener("keydown", event => {
+        const tag = document.activeElement?.tagName;
+
+        if (
+            tag === "INPUT" ||
+            tag === "SELECT" ||
+            tag === "TEXTAREA"
+        ) {
+            return;
+        }
+
+        if (event.code === "Space") {
+            event.preventDefault();
+
+            if (!playButton.disabled) {
+                playButton.click();
+            }
+        } else if (
+            event.key === "ArrowLeft" &&
+            sequencer &&
+            currentSongLoaded
+        ) {
+            event.preventDefault();
+
+            sequencer.currentTime = Math.max(
+                0,
+                sequencer.currentTime - 5
+            );
+
+            lastLyricDisplayKey = "";
+            updatePlayerDisplay();
+        } else if (
+            event.key === "ArrowRight" &&
+            sequencer &&
+            currentSongLoaded
+        ) {
+            event.preventDefault();
+
+            sequencer.currentTime = Math.min(
+                sequencer.duration,
+                sequencer.currentTime + 5
+            );
+
+            lastLyricDisplayKey = "";
+            updatePlayerDisplay();
+        } else if (event.key === "[" && !previousButton.disabled) {
+            previousButton.click();
+        } else if (event.key === "]" && !nextButton.disabled) {
+            nextButton.click();
+        }
+    });
+
+    renderPlaylist();
+
+    if (selectedSongIndex >= 0) {
+        currentTitle.textContent = getSongTitle(songs[selectedSongIndex]);
+        currentArtist.textContent = getSongArtist(songs[selectedSongIndex]);
+    }
+
+    updateControls();
+
+    /*
+       Automatic startup:
+       the player fetches its SoundFont and initializes without a button click.
+    */
+    void initializePlayer();
+</script>
+</body>
+</html>
